@@ -1,5 +1,6 @@
 import csv
 import datetime
+import gc
 
 from mpi4py import MPI
 from tqdm import tqdm
@@ -9,8 +10,26 @@ from fsm_gen.mutator import Mutator
 from walks.hsi import generate_HSI_suite
 from walks.random_walk import RandomWalk
 
+TIME = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
-def run_walk(state_size, input_size, index, percent, walk_type):
+def setup_csvs(num_workers):
+    for i in range(1, num_workers + 1):
+        filename = f"result_{i}_{TIME}.csv"
+        with open(filename, mode="w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["State Size", "Input Size", "Percent Coverage", "HSI Suite Length", "Walk Type", "Walk Length", "Time Taken"])
+
+
+def write_to_csv(key, result, rank):
+    filename = f"result_{rank}_{TIME}.csv"
+
+    with open(filename, mode="a", newline="") as f:
+        writer = csv.writer(f)
+        state_size, input_size, _, percent, walk_type = key.split("_")
+        writer.writerow([state_size, input_size, percent, result["hsi_len"], walk_type, result["walk_len"], result["time_taken"]])
+
+
+def run_walk(state_size, input_size, index, percent, walk_type, rank):
     fsm = FSMGenerator(state_size, input_size)
     mutator = Mutator(fsm)
     hsi_suite = generate_HSI_suite(fsm)
@@ -28,7 +47,8 @@ def run_walk(state_size, input_size, index, percent, walk_type):
         "time_taken": end_time - start_time
     }
 
-    return f"{len(fsm.states)}_{input_size}_{index}_{percent}_{walk_type}", results
+    write_to_csv(f"{len(fsm.states)}_{input_size}_{index}_{percent}_{walk_type}", results, rank)
+
 
 
 def main():
@@ -59,37 +79,19 @@ def main():
         num_workers = size - 1
         chunk_size = len(tasks) // num_workers
         task_chunks = [tasks[i * chunk_size : (i + 1) * chunk_size] for i in range(num_workers)]
+        setup_csvs(num_workers)
 
         for i in range(num_workers):
             comm.send(task_chunks[i], dest=i + 1, tag=11)
 
-       # Collect results
-        all_results = []
-        for i in range(num_workers):
-            all_results.extend(comm.recv(source=i + 1, tag=12))
-
-        # Save results to CSV
-        filename = f"result_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-        with open(filename, mode="w", newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow(["State Size", "Input Size", "Percent Coverage", "HSI Suite Length", "Walk Type", "Walk Length", "Time Taken"])
-
-            for key, result in all_results:
-                state_size, input_size, _, percent, walk_type = key.split("_")
-                writer.writerow([state_size, input_size, percent, result["hsi_len"], walk_type, result["walk_len"], result["time_taken"]])
-
-        print(f"Results saved to {filename}")
-
     else:  # Worker processes
         tasks = comm.recv(source=0, tag=11)
-        worker_results = []
         
         # Progress bar for each worker
         for task in tqdm(tasks, desc=f"Worker {rank}", position=rank, leave=True):
-            worker_results.append(run_walk(*task))
-        
-        comm.send(worker_results, dest=0, tag=12)
-    
+            run_walk(*task, rank)
+            gc.collect()
+            
 
 if __name__ == "__main__":
     main()
