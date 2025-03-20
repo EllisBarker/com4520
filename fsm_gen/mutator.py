@@ -219,8 +219,8 @@ class Mutator:
 
         transition = random.choice(self.fsm.transitions)
 
-        # Ensures FSM is connected still
-        while self._get_num_transitions_exclude_loops(transition["dest"], True) < 2:
+        # Ensures FSM is connected still (and avoid applying mutation to already mutated transitions)
+        while self._get_num_transitions_exclude_loops(transition["dest"], True) < 2 or f"Changed destination of transition {transition}" in self.mutations_applied:
             transition = random.choice(self.fsm.transitions)
 
         # Make sure random destination state cannot be the same state as original destination
