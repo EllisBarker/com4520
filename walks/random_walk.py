@@ -7,6 +7,7 @@ from fsm_gen.generator import FSMGenerator
 A class to perform different types of (often random) walks on a given FSM.
 """
 class RandomWalk:
+    MAX_WALK_LENGTH = 500000
     class WalkType(Enum): 
         RANDOM = 0
         RANDOM_WITH_RESET = 1
@@ -75,6 +76,9 @@ class RandomWalk:
             input_probabilities.append(probabilities[i] / summed_probabilities)
 
         while coverage < self.target_coverage:
+            if len(walk) > self.MAX_WALK_LENGTH:
+                return -1
+
             triggers = self.fsm._get_triggers(state)
             trigger = random.choices(triggers, input_probabilities, k=1)[0]
 
@@ -104,6 +108,9 @@ class RandomWalk:
         self_loop_triggers = []
 
         while coverage < self.target_coverage:
+            if len(walk) > self.MAX_WALK_LENGTH:
+                return -1
+            
             triggers = self.fsm._get_triggers(state)
 
             # Limit triggers to those that are not already explored self-loops
@@ -151,6 +158,9 @@ class RandomWalk:
         transitions_executed = set()
 
         while coverage < self.target_coverage:
+            if len(walk) > self.MAX_WALK_LENGTH:
+                return -1
+            
             triggers = self.fsm._get_triggers(state)
             trigger = random.choice(triggers)
 
@@ -200,6 +210,9 @@ class RandomWalk:
         walk = []
 
         while coverage < self.target_coverage:
+            if len(walk) > self.MAX_WALK_LENGTH:
+                return -1
+            
             triggers = self.fsm._get_triggers(state)
             trigger = random.choice(triggers)
 
