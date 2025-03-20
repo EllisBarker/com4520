@@ -37,9 +37,9 @@ class Mutator:
                                    graph_engine="pygraphviz", auto_transitions=False,
                                    transitions=self.fsm.transitions)
         
-        if not os.path.exists('pickles/mutated'):
-            os.makedirs('pickles/mutated')    
-        pickle.dump(self.fsm, open(f'pickles/mutated/mutated.pkl', 'wb'))
+        # if not os.path.exists('pickles/mutated'):
+        #     os.makedirs('pickles/mutated')    
+        # pickle.dump(self.fsm, open(f'pickles/mutated/mutated.pkl', 'wb'))
 
         return self.fsm
 

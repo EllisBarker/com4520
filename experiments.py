@@ -10,27 +10,25 @@ from walks.hsi import generate_HSI_suite
 from walks.random_walk import RandomWalk
 
 
-def run_walk(state_size, input_size, index, percent):
+def run_walk(state_size, input_size, index, percent, walk_type):
     fsm = FSMGenerator(state_size, input_size)
     mutator = Mutator(fsm)
     hsi_suite = generate_HSI_suite(fsm)
     mutated_fsm = mutator.create_mutated_fsm()
     
     walker = RandomWalk(mutated_fsm, percent, hsi_suite)
-    results = {}
 
-    for walk_type in RandomWalk.WalkType:
-        start_time = datetime.datetime.now()
-        walk_length = walker.walk(walk_type)
-        end_time = datetime.datetime.now()
+    start_time = datetime.datetime.now()
+    walk_length = walker.walk(walk_type)
+    end_time = datetime.datetime.now()
 
-        results[f"{walk_type}"] = {
-            "hsi_len": len(hsi_suite),
-            "walk_len": walk_length,
-            "time_taken": end_time - start_time
-        }
+    results = {
+        "hsi_len": len(hsi_suite),
+        "walk_len": walk_length,
+        "time_taken": end_time - start_time
+    }
 
-    return f"{len(fsm.states)}_{input_size}_{index}_{percent}", results
+    return f"{len(fsm.states)}_{input_size}_{index}_{percent}_{walk_type}", results
 
 
 def distribute_tasks(state_sizes, input_size_multipliers, percent_coverage):
@@ -46,8 +44,9 @@ def distribute_tasks(state_sizes, input_size_multipliers, percent_coverage):
                 input_size = int(state_size * input_size_multipliers[input_size_key])
 
             for i in range(20):
-                for percent in percent_coverage:
-                    tasks.append((state_size, input_size, i, percent))
+                for walk_type in RandomWalk.WalkType:
+                    for percent in percent_coverage:
+                        tasks.append((state_size, input_size, i, percent, walk_type))
 
     return tasks
                 
@@ -76,11 +75,9 @@ def main():
     results = []
 
     for task in tqdm(task_chunk, desc=f"Rank {rank}", leave=True, position=rank, dynamic_ncols=True):
-        state_size, input_size, index, percent = task
-        key, walk_results = run_walk(state_size, input_size, index, percent)
-        
-        for walk_type in walk_results.keys():
-            results.append((f"{key}_{walk_type}", walk_results[walk_type]))
+        state_size, input_size, index, percent, walk_type = task
+        key, walk_results = run_walk(state_size, input_size, index, percent, walk_type)
+        results.append((key, walk_results))
 
     all_results = comm.gather(results, root=0)
 
