@@ -164,4 +164,5 @@ cython_debug/
 pickles/
 fsm_imgs/
 experiments/
+results/
 *.png

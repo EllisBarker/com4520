@@ -7,7 +7,7 @@ from fsm_gen.generator import FSMGenerator
 A class to perform different types of (often random) walks on a given FSM.
 """
 class RandomWalk:
-    MAX_WALK_LENGTH = 500000
+    MAX_WALK_LENGTH = 100000
     class WalkType(Enum): 
         RANDOM = 0
         RANDOM_WITH_RESET = 1
@@ -156,6 +156,7 @@ class RandomWalk:
         coverage = 0
         state = self.fsm.machine.initial
         transitions_executed = set()
+        reset = 0
 
         while coverage < self.target_coverage:
             if len(walk) > self.MAX_WALK_LENGTH:
@@ -189,6 +190,7 @@ class RandomWalk:
                 self.fsm.machine.state = self.fsm.machine.initial
                 walk_since_reset = []
                 steps_since_identification = 0
+                reset += 1
 
             state = self.fsm.machine.state
             coverage = len(transitions_executed) / self.transitions_length * 100
