@@ -51,6 +51,25 @@ def _generate_state_cover(fsm: FSMGenerator) -> dict[str, list[str]]:
     return state_cover
 
 
+def _generate_transition_cover(fsm: FSMGenerator) -> set[str]:
+        """
+        Generate the transition cover for the FSM.
+        
+        Returns:
+            set: the transition cover for the FSM
+        """
+        state_cover = _generate_state_cover(fsm)
+        transition_cover = set()
+
+        for state in fsm.states:
+            transitions = fsm._get_transitions(source=state)
+            for transition in transitions:
+                inp = transition["trigger"].split(" / ")[0]
+                transition_cover.add(''.join(state_cover[state] + [inp]))
+
+        return transition_cover
+
+
 def _generate_harmonised_state_identifiers(fsm: FSMGenerator) -> dict[str, set[str]]:
     """
     Generate a harmonised set of state identifiers for the FSM.
@@ -97,18 +116,21 @@ def generate_HSI_suite(fsm: FSMGenerator) -> dict[str, tuple[str]]:
         set: The HSI test set for the FSM.
     """
     state_identifiers = _generate_harmonised_state_identifiers(fsm)
-    state_cover = _generate_state_cover(fsm)
-
-    max_len = 5 
-    input_sequences = [''.join(seq) for length in range(1, max_len + 1) 
-                       for seq in itertools.product(fsm.events, repeat=length)]
-
+    transition_cover = _generate_transition_cover(fsm)
     hsi_test_set = defaultdict(tuple)
-    # concantenate each state's state cover seq with each input sequence, then concatenate with appropriate state identifier
-    for state, state_cover_seq in state_cover.items():
-        for input_seq in input_sequences:
-            for state_identifier in state_identifiers[state]:
-                seq = ''.join(state_cover_seq + [input_seq] + [state_identifier])
-                hsi_test_set[seq] = fsm.apply_input_sequence(fsm.states[0], seq)[1]
+
+    for seq in transition_cover:
+        for state, identifiers in state_identifiers.items():
+            for identifer in identifiers:
+                sequence = seq + identifer
+                hsi_test_set[sequence] = fsm.apply_input_sequence(fsm.machine.initial, sequence)[1]
+
+    # remove all keys that are prefixes of other keys
+    keys = list(hsi_test_set.keys())
+    for i, key in enumerate(keys):
+        for j in range(i + 1, len(keys)):
+            if keys[j].startswith(key):
+                hsi_test_set.pop(key)
+                break
 
     return hsi_test_set
