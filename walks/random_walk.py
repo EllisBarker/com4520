@@ -18,7 +18,7 @@ class RandomWalk:
             return "".join(self.name.split("_")).lower()
 
     
-    def __init__(self, fsm: FSMGenerator, target_coverage: int, HSI_suite: dict) -> None:
+    def __init__(self, original_fsm: FSMGenerator, mutated_fsm: FSMGenerator, target_coverage: int, HSI_suite: dict) -> None:
         """
         Create a walker instance for a given FSM and target coverage.
 
@@ -27,13 +27,14 @@ class RandomWalk:
             target_coverage (int): the target coverage of transitions to reach during walks.
             HSI_suite (dict): the HSI suite for the unmutated FSM (ways to distinguish states).
         """
-        self.fsm = fsm
+        self.original_fsm = original_fsm
+        self.mutated_fsm = mutated_fsm
+        self.transitions_length = len(mutated_fsm.transitions)
         self.target_coverage = target_coverage
-        self.transitions_length = len(fsm.transitions)
         self.HSI_suite = HSI_suite
 
 
-    def walk(self, walk_type: WalkType, step_limit: int = 5) -> int:
+    def walk(self, walk_type: WalkType, step_limit: int = 5) -> list[str]:
         """
         Perform a specific type of walk on the FSM and return its length.
 
@@ -44,7 +45,7 @@ class RandomWalk:
         Returns:
             int: length of the walk performed in order to meet the target coverage.
         """
-        self.fsm.machine.state = self.fsm.machine.initial
+        self.mutated_fsm.machine.state = self.mutated_fsm.machine.initial
         if walk_type == self.WalkType.RANDOM:
             result = self._random_walk()
         elif walk_type == self.WalkType.RANDOM_WITH_RESET:
@@ -66,11 +67,11 @@ class RandomWalk:
         """
         transitions_executed = set()
         coverage = 0
-        state = self.fsm.machine.initial
+        state = self.mutated_fsm.machine.initial
         walk = []
 
         input_probabilities = []
-        probabilities = [random.random() for i in range(0, len(self.fsm.events))]
+        probabilities = [random.random() for i in range(0, len(self.mutated_fsm.events))]
         summed_probabilities = sum(probabilities)
         for i in range(0, len(probabilities)):
             input_probabilities.append(probabilities[i] / summed_probabilities)
@@ -79,17 +80,17 @@ class RandomWalk:
             if len(walk) > self.MAX_WALK_LENGTH:
                 return -1
 
-            triggers = self.fsm._get_triggers(state)
+            triggers = self.mutated_fsm._get_triggers(state)
             trigger = random.choices(triggers, input_probabilities, k=1)[0]
 
-            self.fsm.machine.trigger(trigger)
+            self.mutated_fsm.machine.trigger(trigger)
             transitions_executed.add(f"{state}->{trigger}")
-            walk.append(f"{state}->{trigger}")
+            walk.append(trigger)
 
-            state = self.fsm.machine.state
+            state = self.mutated_fsm.machine.state
             coverage = len(transitions_executed) / self.transitions_length * 100
 
-        return len(walk)
+        return walk
 
 
     def _limited_self_loop_walk(self) -> int:
@@ -103,7 +104,7 @@ class RandomWalk:
         """
         transitions_executed = set()
         coverage = 0
-        state = self.fsm.machine.initial
+        state = self.mutated_fsm.machine.initial
         walk = []
         self_loop_triggers = []
 
@@ -111,7 +112,7 @@ class RandomWalk:
             if len(walk) > self.MAX_WALK_LENGTH:
                 return -1
             
-            triggers = self.fsm._get_triggers(state)
+            triggers = self.mutated_fsm._get_triggers(state)
 
             # Limit triggers to those that are not already explored self-loops
             triggers_excluding_self_loops = [t for t in triggers if [state, t] not in self_loop_triggers]
@@ -120,14 +121,14 @@ class RandomWalk:
             # Fallback incase only option is to self-loop (theoretically impossible in connected machine)
             else:
                 trigger = random.choice(triggers)
-            previous_state = self.fsm.machine.state
+            previous_state = self.mutated_fsm.machine.state
 
-            self.fsm.machine.trigger(trigger)
+            self.mutated_fsm.machine.trigger(trigger)
             transitions_executed.add(f"{state}->{trigger}")
-            walk.append(f"{state}->{trigger}")
+            walk.append(trigger)
 
-            state = self.fsm.machine.state
-            current_state = self.fsm.machine.state
+            state = self.mutated_fsm.machine.state
+            current_state = self.mutated_fsm.machine.state
 
             # Record presence of a self-loop and the trigger it is associated with
             if previous_state == current_state and [state, trigger] not in self_loop_triggers:
@@ -135,7 +136,7 @@ class RandomWalk:
 
             coverage = len(transitions_executed) / self.transitions_length * 100
 
-        return len(walk)
+        return walk
 
 
     def _random_walk_with_reset(self, step_limit: int) -> int:
@@ -154,20 +155,19 @@ class RandomWalk:
         walk_since_reset = []
         steps_since_identification = 0
         coverage = 0
-        state = self.fsm.machine.initial
+        state = self.mutated_fsm.machine.initial
         transitions_executed = set()
-        reset = 0
 
         while coverage < self.target_coverage:
             if len(walk) > self.MAX_WALK_LENGTH:
                 return -1
             
-            triggers = self.fsm._get_triggers(state)
+            triggers = self.mutated_fsm._get_triggers(state)
             trigger = random.choice(triggers)
 
-            self.fsm.machine.trigger(trigger)
+            self.mutated_fsm.machine.trigger(trigger)
             transitions_executed.add(f"{state}->{trigger}")
-            walk.append(f"{state}->{trigger}")
+            walk.append(trigger)
             walk_since_reset.append(f"{state}->{trigger}")
 
             for index, input_seq in enumerate(self.HSI_suite.keys()):
@@ -176,26 +176,24 @@ class RandomWalk:
                 outputs = ()
                 for pair in walk_since_reset[:len(input_seq)]:
                     io = pair.split("->")[1].split(" / ")
-                    if len(io) == 2:
-                        key += str(io[0])
-                        outputs += (io[1],)
+                    key += str(io[0])
+                    outputs += (io[1],)
                 io_sequence[key] = outputs
 
                 if key in self.HSI_suite.keys() and io_sequence[key] == self.HSI_suite[input_seq]:
                     break
-                elif index == len(self.HSI_suite) - 1:
+                elif index == len(self.HSI_suite):
                     steps_since_identification += 1
 
             if steps_since_identification >= step_limit:
-                self.fsm.machine.state = self.fsm.machine.initial
+                self.mutated_fsm.machine.state = self.mutated_fsm.machine.initial
                 walk_since_reset = []
                 steps_since_identification = 0
-                reset += 1
 
-            state = self.fsm.machine.state
+            state = self.mutated_fsm.machine.state
             coverage = len(transitions_executed) / self.transitions_length * 100
 
-        return len(walk)
+        return walk
     
 
     def _random_walk(self) -> int:
@@ -208,21 +206,46 @@ class RandomWalk:
         """
         transitions_executed = set()
         coverage = 0
-        state = self.fsm.machine.initial
+        state = self.mutated_fsm.machine.initial
         walk = []
 
         while coverage < self.target_coverage:
             if len(walk) > self.MAX_WALK_LENGTH:
                 return -1
             
-            triggers = self.fsm._get_triggers(state)
+            triggers = self.mutated_fsm._get_triggers(state)
             trigger = random.choice(triggers)
 
-            self.fsm.machine.trigger(trigger)
+            self.mutated_fsm.machine.trigger(trigger)
             transitions_executed.add(f"{state}->{trigger}")
-            walk.append(f"{state}->{trigger}")
+            walk.append(trigger)
 
-            state = self.fsm.machine.state
+            state = self.mutated_fsm.machine.state
             coverage = len(transitions_executed) / self.transitions_length * 100
 
-        return len(walk)
+        return walk
+
+
+    def detected_fault(self, mutated_walk: list[str]) -> int:
+        """
+        Check whether walk detected fault in mutated FSM.
+        
+        Args:
+            mutated_walk (list[str]): the walk performed on the mutated FSM.
+            
+        Returns:
+            int: the index of the fault detected in the walk.
+        """
+        if mutated_walk == -1:
+            return -1
+
+        mutated_walk_inputs = "".join([trigger.split(" / ")[0] for trigger in mutated_walk])
+        mutated_walk_outputs = tuple([trigger.split(" / ")[1] for trigger in mutated_walk])
+
+        _, outputs = self.original_fsm.apply_input_sequence(self.original_fsm.machine.initial, mutated_walk_inputs)
+
+        for index, output in enumerate(outputs):
+            if output != mutated_walk_outputs[index]:
+                return index + 1
+            
+        return -1

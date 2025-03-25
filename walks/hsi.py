@@ -86,7 +86,7 @@ def _generate_harmonised_state_identifiers(fsm: FSMGenerator) -> dict[str, set[s
     return state_identifiers
 
 
-def generate_HSI_suite(fsm: FSMGenerator) -> dict[str, set[str]]:
+def generate_HSI_suite(fsm: FSMGenerator) -> dict[str, tuple[str]]:
     """
     Generate the HSI test set for the FSM using the HSI method.
 
@@ -103,11 +103,12 @@ def generate_HSI_suite(fsm: FSMGenerator) -> dict[str, set[str]]:
     input_sequences = [''.join(seq) for length in range(1, max_len + 1) 
                        for seq in itertools.product(fsm.events, repeat=length)]
 
-    hsi_test_set = defaultdict(set)
+    hsi_test_set = defaultdict(tuple)
     # concantenate each state's state cover seq with each input sequence, then concatenate with appropriate state identifier
     for state, state_cover_seq in state_cover.items():
         for input_seq in input_sequences:
             for state_identifier in state_identifiers[state]:
-                hsi_test_set[state].add(''.join(state_cover_seq + [input_seq] + [state_identifier]))
+                seq = ''.join(state_cover_seq + [input_seq] + [state_identifier])
+                hsi_test_set[seq] = fsm.apply_input_sequence(fsm.states[0], seq)[1]
 
     return hsi_test_set

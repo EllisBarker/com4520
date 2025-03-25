@@ -343,7 +343,17 @@ class FSMGenerator:
         self.machine.draw_graph(title).draw(f"fsm_imgs/{filename}", prog='dot')
 
 
-    def apply_input_sequence(self, state: str, sequence: str) -> tuple:
+    def apply_input_sequence(self, state: str, sequence: str) -> tuple[str]:
+        """
+        Apply an input sequence to the machine.
+        
+        Args:
+            state (str): The state to start from.
+            sequence (str): The input sequence to apply.
+
+        Returns:
+            tuple: The final state and the output sequence.
+        """
         output_seq = []
 
         for event in sequence:
