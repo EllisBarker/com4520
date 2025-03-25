@@ -39,8 +39,8 @@ def run_walk(state_size, input_size, percent, walk_type):
 
 
 def main():
-    state_sizes = [5, 10, 20, 40]
-    input_size_multipliers = {"2": 2, "n/2": 0.5, "n": 1, "2n": 2}
+    state_sizes = [20, 40]
+    input_size_multipliers = {"n/2": 0.5, "n": 1, "2n": 2}
     percent_coverage = [80, 90, 95, 99.5]
 
     if not os.path.exists("results"):
@@ -52,7 +52,10 @@ def main():
 
     for state_size in state_sizes:
         for input_size_multiplier in input_size_multipliers:
-            if state_size >= 20 and input_size_multiplier == "2":
+            if state_size == 20 and input_size_multiplier == "n/2" or state_size == 20 and input_size_multiplier == "n":
+                continue
+
+            if state_size == 40 and input_size_multiplier != "n/2":
                 continue
 
             input_size = 2 if input_size_multiplier == "2" else int(state_size * input_size_multipliers[input_size_multiplier])
