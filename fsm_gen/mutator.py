@@ -21,7 +21,8 @@ class Mutator:
             fsm (FSMGenerator): the (unmutated) FSM to apply mutations to.
         """
         self.fsm = fsm
-        self.num_mutations = int(0.4 * len(self.fsm.states))
+        # self.num_mutations = int(0.4 * len(self.fsm.states))
+        self.num_mutations = 1
         self.mutations_applied = []
 
 
@@ -37,10 +38,6 @@ class Mutator:
                                    graph_engine="pygraphviz", auto_transitions=False,
                                    transitions=self.fsm.transitions)
         
-        # if not os.path.exists('pickles/mutated'):
-        #     os.makedirs('pickles/mutated')    
-        # pickle.dump(self.fsm, open(f'pickles/mutated/mutated.pkl', 'wb'))
-
         return self.fsm
 
 
